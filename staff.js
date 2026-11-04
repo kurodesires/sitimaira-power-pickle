@@ -6,6 +6,11 @@ const rows = document.getElementById('bookingRows');
 const empty = document.getElementById('emptyState');
 const summary = document.getElementById('staffSummary');
 const adminDate = document.getElementById('adminDate');
+const adminMonthLabel = document.getElementById('adminMonthLabel');
+const adminCalendarDays = document.getElementById('adminCalendarDays');
+const adminSelectedDateLabel = document.getElementById('adminSelectedDateLabel');
+const walkinStartOptions = document.getElementById('walkinStartOptions');
+const walkinEndOptions = document.getElementById('walkinEndOptions');
 const adminActivity = document.getElementById('adminActivity');
 const adminSlotGrid = document.getElementById('adminSlotGrid');
 const walkinBlockForm = document.getElementById('walkinBlockForm');
@@ -14,6 +19,7 @@ const availabilityMessage = document.getElementById('adminAvailabilityMessage');
 const removeBookingDialog = document.getElementById('removeBookingDialog');
 const removeDialogMessage = document.getElementById('removeDialogMessage');
 let authenticated = false;
+let adminMonthCursor = new Date();
 
 function confirmBookingRemoval(booking) {
   removeDialogMessage.textContent = `Remove the booking for ${booking.name} on ${booking.date} at ${booking.time}? This action cannot be undone.`;
@@ -40,10 +46,73 @@ function showDashboard(isLoggedIn) {
 function hourLabel(hour) { return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`; }
 function minuteLabel(total) { const hour = Math.floor(total / 60); const minute = total % 60; return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`; }
 function dateToday() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
+function dateFromString(value) { const [year, month, day] = value.split('-').map(Number); return new Date(year, month - 1, day); }
+function dateLabel(value) { return dateFromString(value).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
+function minuteTime(value) { const [hour, minute] = value.split(':').map(Number); return hour * 60 + minute; }
+function valueTime(total) { return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
 function cell(text) { const td = document.createElement('td'); td.textContent = text ?? ''; return td; }
 function actionButton(label, className, handler) {
   const button = document.createElement('button'); button.type = 'button'; button.className = className; button.textContent = label;
   button.addEventListener('click', handler); return button;
+}
+function drawAdminCalendar() {
+  if (!adminDate.value) adminDate.value = dateToday();
+  adminMonthLabel.textContent = adminMonthCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  adminSelectedDateLabel.textContent = dateLabel(adminDate.value);
+  adminCalendarDays.replaceChildren();
+  const first = new Date(adminMonthCursor.getFullYear(), adminMonthCursor.getMonth(), 1);
+  const start = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+  const today = dateToday();
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'admin-calendar-day'; button.textContent = String(date.getDate());
+    if (date.getMonth() !== adminMonthCursor.getMonth()) button.classList.add('outside-month');
+    if (value === today) button.classList.add('is-today');
+    if (value === adminDate.value) button.classList.add('is-selected');
+    button.disabled = value < today;
+    button.setAttribute('aria-label', date.toLocaleDateString(undefined, { dateStyle: 'full' }));
+    button.setAttribute('aria-selected', value === adminDate.value ? 'true' : 'false');
+    if (value === today) button.setAttribute('aria-current', 'date');
+    button.addEventListener('click', () => {
+      adminDate.value = value;
+      adminMonthCursor = new Date(date.getFullYear(), date.getMonth(), 1);
+      drawAdminCalendar(); renderAvailability();
+    });
+    adminCalendarDays.append(button);
+  }
+  document.getElementById('adminPrevMonth').disabled = adminMonthCursor.getFullYear() === new Date().getFullYear() && adminMonthCursor.getMonth() <= new Date().getMonth();
+}
+
+function drawTimeChoices() {
+  const now = new Date();
+  const startFloor = adminDate.value === dateToday() ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30 : 360;
+  let selectedStart = minuteTime(document.getElementById('walkinStart').value);
+  let selectedEnd = minuteTime(document.getElementById('walkinEnd').value);
+  if (selectedStart < startFloor || selectedStart >= 1140) selectedStart = Math.min(Math.max(startFloor, 360), 1110);
+  if (selectedEnd <= selectedStart || selectedEnd > 1140) selectedEnd = Math.min(selectedStart + 60, 1140);
+  document.getElementById('walkinStart').value = valueTime(selectedStart);
+  document.getElementById('walkinEnd').value = valueTime(selectedEnd);
+  walkinStartOptions.replaceChildren(); walkinEndOptions.replaceChildren();
+  for (let minute = 360; minute <= 1110; minute += 30) {
+    const start = actionButton(minuteLabel(minute), `time-choice${minute === selectedStart ? ' selected' : ''}`, () => {
+      document.getElementById('walkinStart').value = valueTime(minute);
+      if (selectedEnd <= minute) document.getElementById('walkinEnd').value = valueTime(Math.min(minute + 60, 1140));
+      drawTimeChoices();
+    });
+    start.disabled = minute < startFloor || minute >= 1140;
+    start.setAttribute('aria-pressed', minute === selectedStart ? 'true' : 'false');
+    walkinStartOptions.append(start);
+  }
+  for (let minute = 390; minute <= 1140; minute += 30) {
+    const end = actionButton(minuteLabel(minute), `time-choice${minute === selectedEnd ? ' selected' : ''}`, () => {
+      document.getElementById('walkinEnd').value = valueTime(minute); drawTimeChoices();
+    });
+    end.disabled = minute <= selectedStart;
+    end.setAttribute('aria-pressed', minute === selectedEnd ? 'true' : 'false');
+    walkinEndOptions.append(end);
+  }
 }
 async function render() {
   if (!authenticated) return;
@@ -100,13 +169,20 @@ async function renderAvailability() {
     for (let hour = 6; hour < 19; hour += 1) {
       const booked = bookedHours.has(hour);
       const walkinBlocked = blocks.some((block) => block.startMinute < (hour + 1) * 60 && block.endMinute > hour * 60);
-      const available = !booked && !walkinBlocked;
-      const card = document.createElement('div'); card.className = `admin-slot ${booked ? 'is-booked' : available ? 'is-open' : 'is-unavailable'}`;
+      const isPast = adminDate.value < dateToday() || (adminDate.value === dateToday() && hour * 60 < new Date().getHours() * 60 + new Date().getMinutes());
+      const available = !booked && !walkinBlocked && !isPast;
+      const card = document.createElement('button'); card.type = 'button'; card.className = `admin-slot ${booked ? 'is-booked' : walkinBlocked ? 'is-unavailable' : isPast ? 'is-past' : 'is-open'}`;
+      card.disabled = !available;
       const label = document.createElement('div'); label.className = 'admin-slot-label';
       const range = document.createElement('strong'); range.textContent = `${hourLabel(hour)} to ${hourLabel(hour + 1)}`;
-      const status = document.createElement('span'); status.textContent = booked ? 'Booked online' : available ? 'Available' : 'Unavailable · walk-in';
+      const status = document.createElement('span'); status.textContent = booked ? 'Booked online' : walkinBlocked ? 'Unavailable · walk-in' : isPast ? 'Past' : 'Available · tap to select';
       label.append(range, status);
       card.append(label); adminSlotGrid.append(card);
+      card.addEventListener('click', () => {
+        document.getElementById('walkinStart').value = valueTime(hour * 60);
+        document.getElementById('walkinEnd').value = valueTime((hour + 1) * 60);
+        drawTimeChoices();
+      });
     }
     walkinBlockList.replaceChildren();
     if (!blocks.length) { walkinBlockList.textContent = 'No active walk-in holds for this date.'; return; }
@@ -128,8 +204,17 @@ async function renderAvailability() {
   }
 }
 
-adminDate.value = dateToday();
-adminDate.addEventListener('change', renderAvailability);
+adminDate.value = dateToday(); adminMonthCursor = new Date();
+drawAdminCalendar(); drawTimeChoices();
+document.getElementById('adminPrevMonth').addEventListener('click', () => {
+  adminMonthCursor = new Date(adminMonthCursor.getFullYear(), adminMonthCursor.getMonth() - 1, 1); drawAdminCalendar();
+});
+document.getElementById('adminNextMonth').addEventListener('click', () => {
+  adminMonthCursor = new Date(adminMonthCursor.getFullYear(), adminMonthCursor.getMonth() + 1, 1); drawAdminCalendar();
+});
+document.getElementById('adminToday').addEventListener('click', () => {
+  adminDate.value = dateToday(); adminMonthCursor = new Date(); drawAdminCalendar(); drawTimeChoices(); renderAvailability();
+});
 adminActivity.addEventListener('change', renderAvailability);
 walkinBlockForm.addEventListener('submit', async (event) => {
   event.preventDefault(); availabilityMessage.textContent = '';

@@ -66,3 +66,41 @@
 .dialog-remove{border:1px solid #c94366;background:#d85d7f;color:white}
 .dialog-cancel:hover{background:#f5f7f3}.dialog-remove:hover{background:#bd4264}
 @media(max-width:560px){.confirm-dialog{padding:24px 20px}.confirm-dialog-actions{flex-direction:column-reverse}.confirm-dialog-actions form,.confirm-dialog-actions button{width:100%}}
+.admin-calendar{max-width:520px;margin:16px 0 22px;padding:15px;border:1px solid var(--line);border-radius:10px;background:#f8fcf8}
+.admin-calendar-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.admin-calendar-caption{margin:0 0 4px;color:var(--muted);font-size:8px;font-weight:800;letter-spacing:1.1px}
+.admin-calendar-top>div:first-child>strong{color:var(--blue);font:600 13px 'Space Grotesk',sans-serif}
+.admin-calendar-nav{display:flex;align-items:center;gap:7px}
+.admin-calendar-nav>span{min-width:105px;color:var(--blue);font-size:11px;font-weight:700;text-align:center}
+.admin-calendar-nav button{width:32px;height:32px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--blue);font-size:20px;cursor:pointer}
+.admin-calendar-nav button:disabled{opacity:.35;cursor:default}
+.admin-calendar-nav .admin-today-button{width:auto;padding:0 9px;font-size:9px;font-weight:700}
+.admin-calendar-weekdays,.admin-calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.admin-calendar-weekdays{margin-bottom:4px;text-align:center;color:var(--muted);font-size:9px;font-weight:700}
+.admin-calendar-weekdays span{padding:5px 0}
+.admin-calendar-day{height:34px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--ink);font:11px 'DM Sans',sans-serif;cursor:pointer}
+.admin-calendar-day:hover:not(:disabled){border-color:#88a987;background:#edf6ec}
+.admin-calendar-day.outside-month{color:#a7b0a4}
+.admin-calendar-day.is-today:not(.is-selected){border-color:#aac9a7;font-weight:800}
+.admin-calendar-day.is-selected{border-color:var(--blue);background:var(--blue);color:#fff;font-weight:800}
+.admin-calendar-day:disabled{color:#c6cbc3;cursor:default}
+.admin-calendar-day:focus-visible,.admin-calendar-nav button:focus-visible,.time-choice:focus-visible,.admin-slot:focus-visible{outline:3px solid #e98eab;outline-offset:2px}
+.walkin-block-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:13px;margin:16px 0 21px}
+.time-choice-group{min-width:0;margin:0;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.time-choice-group legend{padding:0 5px;color:var(--blue);font-size:10px;font-weight:800}
+.time-choice-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.time-choice{min-height:31px;padding:4px 2px;border:1px solid #dfe7dc;border-radius:5px;background:#f9fcf8;color:#48584a;font:9px 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap}
+.time-choice:hover:not(:disabled){border-color:#94b391;background:#eef7ec}
+.time-choice.selected{border-color:var(--blue);background:var(--blue);color:white;font-weight:800}
+.time-choice:disabled{opacity:.38;cursor:not-allowed}
+.walkin-submit{grid-column:1/-1;justify-self:start;min-height:42px;padding:0 18px}
+.admin-slot-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:20px 0 10px}
+.admin-slot-heading h3{margin:0;color:var(--blue);font:700 14px 'Space Grotesk',sans-serif}
+.admin-slot-heading span{color:var(--muted);font-size:9px}
+.admin-slot{width:100%;font-family:'DM Sans',sans-serif;text-align:left;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+.admin-slot.is-open:hover{border-color:#698e70;background:#eff8ef;transform:translateY(-1px)}
+.admin-slot.is-past{border-color:#e1e4df;background:#f2f4f0;color:#a0a79f;cursor:not-allowed}
+.admin-slot:disabled{cursor:not-allowed}
+.admin-slot-grid{grid-template-columns:repeat(auto-fit,minmax(185px,1fr))}
+@media(max-width:800px){.time-choice-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.walkin-block-form{grid-template-columns:1fr}}
+@media(max-width:560px){.admin-calendar{padding:11px}.admin-calendar-top{align-items:flex-start;flex-direction:column}.admin-calendar-nav{width:100%;justify-content:space-between}.admin-calendar-nav>span{flex:1}.admin-calendar-day{height:37px}.time-choice-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.walkin-submit{width:100%}.admin-slot-heading{align-items:flex-start;flex-direction:column}}
