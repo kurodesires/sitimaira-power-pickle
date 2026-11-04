@@ -43,8 +43,8 @@ function showDashboard(isLoggedIn) {
   document.title = isLoggedIn ? 'Admin bookings | Sitimaira Power Smash' : 'Admin login | Sitimaira Power Smash';
   if (isLoggedIn) { render(); renderAvailability(); }
 }
-function hourLabel(hour) { return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`; }
-function minuteLabel(total) { const hour = Math.floor(total / 60); const minute = total % 60; return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`; }
+function hourLabel(hour) { if (hour === 24) return '12am'; return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`; }
+function minuteLabel(total) { const hour = Math.floor(total / 60); const minute = total % 60; if (total === 1440) return '12:00 AM'; return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`; }
 function dateToday() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
 function dateFromString(value) { const [year, month, day] = value.split('-').map(Number); return new Date(year, month - 1, day); }
 function dateLabel(value) { return dateFromString(value).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
@@ -87,25 +87,25 @@ function drawAdminCalendar() {
 
 function drawTimeChoices() {
   const now = new Date();
-  const startFloor = adminDate.value === dateToday() ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 30) * 30 : 360;
+  const startFloor = adminDate.value === dateToday() ? (Math.floor((now.getHours() * 60 + now.getMinutes()) / 30) + 1) * 30 : 480;
   let selectedStart = minuteTime(document.getElementById('walkinStart').value);
   let selectedEnd = minuteTime(document.getElementById('walkinEnd').value);
-  if (selectedStart < startFloor || selectedStart >= 1140) selectedStart = Math.min(Math.max(startFloor, 360), 1110);
-  if (selectedEnd <= selectedStart || selectedEnd > 1140) selectedEnd = Math.min(selectedStart + 60, 1140);
+  if (selectedStart < startFloor || selectedStart < 480 || selectedStart >= 1440) selectedStart = Math.min(Math.max(startFloor, 480), 1410);
+  if (selectedEnd <= selectedStart || selectedEnd > 1440) selectedEnd = Math.min(selectedStart + 60, 1440);
   document.getElementById('walkinStart').value = valueTime(selectedStart);
   document.getElementById('walkinEnd').value = valueTime(selectedEnd);
   walkinStartOptions.replaceChildren(); walkinEndOptions.replaceChildren();
-  for (let minute = 360; minute <= 1110; minute += 30) {
+  for (let minute = 480; minute <= 1410; minute += 30) {
     const start = actionButton(minuteLabel(minute), `time-choice${minute === selectedStart ? ' selected' : ''}`, () => {
       document.getElementById('walkinStart').value = valueTime(minute);
-      if (selectedEnd <= minute) document.getElementById('walkinEnd').value = valueTime(Math.min(minute + 60, 1140));
+      if (selectedEnd <= minute) document.getElementById('walkinEnd').value = valueTime(Math.min(minute + 60, 1440));
       drawTimeChoices();
     });
-    start.disabled = minute < startFloor || minute >= 1140;
+    start.disabled = minute < startFloor;
     start.setAttribute('aria-pressed', minute === selectedStart ? 'true' : 'false');
     walkinStartOptions.append(start);
   }
-  for (let minute = 390; minute <= 1140; minute += 30) {
+  for (let minute = 510; minute <= 1440; minute += 30) {
     const end = actionButton(minuteLabel(minute), `time-choice${minute === selectedEnd ? ' selected' : ''}`, () => {
       document.getElementById('walkinEnd').value = valueTime(minute); drawTimeChoices();
     });
@@ -166,10 +166,10 @@ async function renderAvailability() {
     const query = new URLSearchParams({ date: adminDate.value, activity: adminActivity.value });
     const { blocks, bookings } = await requestJson(`/api/staff/availability?${query}`);
     const bookedHours = new Set(bookings.map((booking) => booking.startHour));
-    for (let hour = 6; hour < 19; hour += 1) {
+    for (let hour = 8; hour < 24; hour += 1) {
       const booked = bookedHours.has(hour);
       const walkinBlocked = blocks.some((block) => block.startMinute < (hour + 1) * 60 && block.endMinute > hour * 60);
-      const isPast = adminDate.value < dateToday() || (adminDate.value === dateToday() && hour * 60 < new Date().getHours() * 60 + new Date().getMinutes());
+      const isPast = adminDate.value < dateToday() || (adminDate.value === dateToday() && (hour + 1) * 60 <= new Date().getHours() * 60 + new Date().getMinutes());
       const available = !booked && !walkinBlocked && !isPast;
       const card = document.createElement('button'); card.type = 'button'; card.className = `admin-slot ${booked ? 'is-booked' : walkinBlocked ? 'is-unavailable' : isPast ? 'is-past' : 'is-open'}`;
       card.disabled = !available;

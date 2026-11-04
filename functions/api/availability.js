@@ -14,7 +14,7 @@ export async function onRequestGet({ request, env }) {
       WHERE booking_date = ? AND activity = ? AND (? != booking_date OR end_minute > ?)`)
       .bind(date, activity, now.date, now.hour * 60 + now.minute).all();
     const unavailableTimes = [];
-    for (let hour = 6; hour < 19; hour += 1) {
+    for (let hour = 8; hour < 24; hour += 1) {
       if (blocks.some((block) => block.start_minute < (hour + 1) * 60 && block.end_minute > hour * 60)) {
         unavailableTimes.push(`${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`);
       }

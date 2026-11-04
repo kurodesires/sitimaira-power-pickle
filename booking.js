@@ -14,6 +14,41 @@ let monthCursor = new Date(today.getFullYear(), today.getMonth(), 1);
 let selectedTime = '';
 let slotRequest = 0;
 
+async function showPayMongoReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const outcome = params.get('paymongo');
+  const bookingId = params.get('booking');
+  if (!outcome || !bookingId || !/^[0-9a-f-]{36}$/i.test(bookingId)) return;
+  if (outcome === 'cancelled') {
+    try {
+      const booking = await (await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { cache: 'no-store' })).json();
+      message.textContent = 'Checkout was cancelled. Your slot is still open. ';
+      if (booking.checkoutUrl) {
+        const retry = document.createElement('a'); retry.href = booking.checkoutUrl; retry.textContent = 'Return to secure checkout';
+        message.append(retry);
+      }
+    } catch { message.textContent = 'Checkout was cancelled. Your slot is still open.'; }
+    return;
+  }
+  if (outcome !== 'return') return;
+  message.textContent = 'Checking the payment with PayMongo…';
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { cache: 'no-store' });
+      const booking = await response.json();
+      if (response.ok && booking.paymentStatus === 'Paid') {
+        message.textContent = booking.status === 'Confirmed'
+          ? 'Payment received and booking confirmed. See you at the venue!'
+          : 'Payment received. Your booking is awaiting admin approval; the slot is not reserved until it is confirmed.';
+        message.classList.add('success');
+        return;
+      }
+    } catch { /* Retry briefly while PayMongo sends the verified webhook. */ }
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+  }
+  message.textContent = 'PayMongo has not confirmed this payment yet. Please do not pay again; contact the venue if it remains pending.';
+}
+
 function toDateString(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -21,7 +56,7 @@ function fromDateString(value) {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
-function hourLabel(hour) { return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`; }
+function hourLabel(hour) { if (hour === 24) return '12am'; return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`; }
 
 function drawCalendar() {
   monthLabel.textContent = monthCursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -67,8 +102,8 @@ async function drawSlots({ keepSelection = false } = {}) {
       workerUnavailableTimes = new Set(data.unavailableTimes);
       availabilityReady = true;
       scheduleNote.textContent = selectedDate === todayString
-        ? 'Past hours are closed. Choose an open time below; pending requests do not reserve it.'
-        : 'Choose an open time below. Admin approval and recorded payment are both required to confirm a slot.';
+        ? 'Business hours are 8:00 AM to 12:00 AM. Past hours are closed; unpaid requests do not reserve a slot.'
+        : 'Open hours are 8:00 AM to 12:00 AM. Payment and admin approval are both required to confirm a slot.';
     } catch (error) {
       scheduleNote.textContent = `${error.message} Please refresh or try again.`;
     }
@@ -76,17 +111,15 @@ async function drawSlots({ keepSelection = false } = {}) {
   if (requestId !== slotRequest) return;
   courtName.textContent = currentActivity === 'Billiards' ? 'Table 1' : 'Court 1';
   timeGrid.replaceChildren();
-  for (let hour = 6; hour < 23; hour += 1) {
+  for (let hour = 8; hour < 24; hour += 1) {
     const time = `${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`;
     const endTime = hourLabel(hour + 1);
     const paidBooking = bookedTimes.has(time);
     const staffClosed = workerUnavailableTimes.has(time);
-    const isClosed = hour >= 19;
     const isPastDate = selectedDate < todayString;
     const isPastHour = selectedDate === todayString && hour <= today.getHours();
     let state = availabilityReady ? 'open' : 'unavailable';
-    if (isClosed) state = 'closed';
-    else if (paidBooking) state = 'booked';
+    if (paidBooking) state = 'booked';
     else if (staffClosed) state = 'staff-closed';
     else if (isPastDate || isPastHour) state = 'past';
 
@@ -96,7 +129,7 @@ async function drawSlots({ keepSelection = false } = {}) {
     const range = document.createElement('span'); range.className = 'slot-range';
     range.innerHTML = `<strong>${hourLabel(hour)}</strong><span>to</span><strong>${endTime}</strong><em>₱${rate}</em>`;
     const status = document.createElement('span'); status.className = 'slot-status';
-    status.textContent = state === 'booked' ? '✓ Booked' : state === 'closed' ? '⚒ Closed' : state === 'staff-closed' ? 'Unavailable' : state === 'past' ? 'Past' : state === 'unavailable' ? 'Unavailable' : 'Open';
+    status.textContent = state === 'booked' ? '✓ Booked' : state === 'staff-closed' ? 'Unavailable' : state === 'past' ? 'Past' : state === 'unavailable' ? 'Unavailable' : 'Open';
     button.append(range, status);
     button.setAttribute('aria-label', `${hourLabel(hour)} to ${endTime}, ${state}${state === 'open' ? `, ${rate} pesos` : ''}`);
     button.addEventListener('click', () => {
@@ -113,8 +146,8 @@ async function drawSlots({ keepSelection = false } = {}) {
     timeGrid.append(button);
   }
   scheduleNote.textContent = selectedDate === todayString
-    ? 'Past hours are closed. Choose an open time below; pending requests do not reserve it.'
-    : 'Choose an open time below. Admin approval and recorded payment are both required to confirm a slot.';
+    ? 'Business hours are 8:00 AM to 12:00 AM. Past hours are closed; unpaid requests do not reserve a slot.'
+    : 'Open hours are 8:00 AM to 12:00 AM. Payment and admin approval are both required to confirm a slot.';
 }
 
 dateInput.value = todayString;
@@ -143,7 +176,8 @@ form.addEventListener('submit', async (event) => {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not save the booking.');
-    message.textContent = `Booking request saved, ${String(fd.get('name')).trim()}. Your ${String(fd.get('activity'))} request for ${String(fd.get('date'))} at ${selectedTime} is pending admin approval and payment. The slot stays open until both are complete.`;
+    if (data.checkoutUrl) { window.location.assign(data.checkoutUrl); return; }
+    message.textContent = `Booking request saved, ${String(fd.get('name')).trim()}. Your ${String(fd.get('activity'))} request for ${String(fd.get('date'))} at ${selectedTime} is pending payment verification and admin approval. The slot stays open until both are complete.`;
     message.classList.add('success'); form.reset(); activity.value = 'Pickleball'; selectedTime = ''; dateInput.value = todayString; monthCursor = new Date(today.getFullYear(), today.getMonth(), 1); drawCalendar(); await drawSlots();
   } catch (error) {
     message.textContent = error.message;
@@ -151,3 +185,5 @@ form.addEventListener('submit', async (event) => {
     if (error.message.toLowerCase().includes('paid')) await drawSlots();
   } finally { submitButton.disabled = false; }
 });
+
+showPayMongoReturn();

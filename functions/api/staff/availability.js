@@ -6,11 +6,12 @@ const validDate = (value) => {
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
-function timeToMinute(value) {
+function timeToMinute(value, allowMidnightEnd = false) {
   const match = /^(\d{2}):(\d{2})$/.exec(value || '');
   if (!match) return null;
   const hour = Number(match[1]); const minute = Number(match[2]);
-  if (hour < 6 || hour > 19 || ![0, 30].includes(minute) || (hour === 19 && minute !== 0)) return null;
+  if (allowMidnightEnd && hour === 24 && minute === 0) return 1440;
+  if (hour < 8 || hour > 23 || ![0, 30].includes(minute)) return null;
   return hour * 60 + minute;
 }
 
@@ -45,9 +46,9 @@ export async function onRequestPost({ request, env }) {
   const date = String(input.date || '');
   const activity = String(input.activity || '');
   const startMinute = timeToMinute(input.startTime);
-  const endMinute = timeToMinute(input.endTime);
+  const endMinute = timeToMinute(input.endTime, true);
   if (!validDate(date) || !activities.includes(activity) || startMinute === null || endMinute === null || endMinute <= startMinute) {
-    return json({ error: 'Choose a valid date and time range. Times use 30-minute steps and must be between 6:00 AM and 7:00 PM.' }, 400);
+    return json({ error: 'Choose a valid date and time range. Business hours are 8:00 AM to 12:00 AM, using 30-minute steps.' }, 400);
   }
   const now = manilaNow();
   if (date < now.date || (date === now.date && startMinute <= now.hour * 60 + now.minute)) return json({ error: 'The walk-in time must start in the future.' }, 400);
