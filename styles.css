@@ -53,3 +53,16 @@
 .walkin-block-list{display:grid;gap:8px;margin-top:12px;color:var(--muted);font-size:11px}
 .walkin-block-item{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #edc3d0;border-radius:6px;background:#fff7fa;color:#593847}
 @media(max-width:560px){.brand-name{font-size:12px}.availability-admin-heading h2{font-size:29px}.walkin-block-form{align-items:stretch;flex-direction:column}.walkin-block-form .button{width:100%}.walkin-block-item{align-items:flex-start;flex-direction:column}}
+.confirm-dialog{width:min(440px,calc(100% - 32px));padding:30px;border:1px solid #dce6d7;border-radius:14px;background:#fffdf8;color:var(--ink);box-shadow:0 24px 80px #17352538}
+.confirm-dialog::backdrop{background:#10231999;backdrop-filter:blur(3px)}
+.confirm-dialog-mark{width:42px;height:42px;margin-bottom:18px;display:grid;place-items:center;border-radius:50%;background:#fff0f3;color:#c84d70;font:700 20px 'Space Grotesk',sans-serif}
+.confirm-dialog .eyebrow{margin-bottom:7px;font-size:9px}
+.confirm-dialog h2{margin:0 0 9px;color:var(--blue);font-size:26px;letter-spacing:-.8px}
+.confirm-dialog>p:not(.eyebrow){margin:0;color:var(--muted);font-size:13px;line-height:1.65}
+.confirm-dialog-actions{margin-top:25px;display:flex;justify-content:flex-end;gap:9px}
+.confirm-dialog-actions form{margin:0}
+.confirm-dialog-actions button{min-height:42px;padding:0 14px;border-radius:6px;font:700 11px 'DM Sans',sans-serif;cursor:pointer}
+.dialog-cancel{border:1px solid var(--line);background:white;color:var(--blue)}
+.dialog-remove{border:1px solid #c94366;background:#d85d7f;color:white}
+.dialog-cancel:hover{background:#f5f7f3}.dialog-remove:hover{background:#bd4264}
+@media(max-width:560px){.confirm-dialog{padding:24px 20px}.confirm-dialog-actions{flex-direction:column-reverse}.confirm-dialog-actions form,.confirm-dialog-actions button{width:100%}}

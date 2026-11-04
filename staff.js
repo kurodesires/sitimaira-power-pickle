@@ -11,7 +11,17 @@ const adminSlotGrid = document.getElementById('adminSlotGrid');
 const walkinBlockForm = document.getElementById('walkinBlockForm');
 const walkinBlockList = document.getElementById('walkinBlockList');
 const availabilityMessage = document.getElementById('adminAvailabilityMessage');
+const removeBookingDialog = document.getElementById('removeBookingDialog');
+const removeDialogMessage = document.getElementById('removeDialogMessage');
 let authenticated = false;
+
+function confirmBookingRemoval(booking) {
+  removeDialogMessage.textContent = `Remove the booking for ${booking.name} on ${booking.date} at ${booking.time}? This action cannot be undone.`;
+  removeBookingDialog.showModal();
+  return new Promise((resolve) => {
+    removeBookingDialog.addEventListener('close', () => resolve(removeBookingDialog.returnValue === 'confirm'), { once: true });
+  });
+}
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options });
@@ -57,14 +67,17 @@ async function render() {
           catch (error) { window.alert(error.message); }
         }));
       }
-      if (booking.paymentStatus !== 'Paid') {
+      if (booking.paymentStatus !== 'Paid' && booking.paymentProvider !== 'PayMongo') {
         actions.append(actionButton('Mark paid', 'mark-paid-button', async () => {
           try { await requestJson(`/api/staff/bookings/${encodeURIComponent(booking.id)}/paid`, { method: 'POST' }); await render(); }
           catch (error) { window.alert(error.message); }
         }));
       }
+      if (booking.paymentStatus !== 'Paid' && booking.paymentProvider === 'PayMongo') {
+        const awaiting = document.createElement('small'); awaiting.textContent = 'Awaiting PayMongo webhook'; actions.append(awaiting);
+      }
       actions.append(actionButton('Remove', 'remove-booking-button', async () => {
-        if (!window.confirm(`Remove the booking for ${booking.name} on ${booking.date} at ${booking.time}?`)) return;
+        if (!await confirmBookingRemoval(booking)) return;
         try { await requestJson(`/api/staff/bookings/${encodeURIComponent(booking.id)}`, { method: 'DELETE' }); await render(); }
         catch (error) { window.alert(error.message); }
       }));
