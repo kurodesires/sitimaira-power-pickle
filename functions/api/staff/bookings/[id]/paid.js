@@ -6,14 +6,22 @@ export async function onRequestPost({ request, env, params }) {
   if (!env.DB) return json({ error: 'Booking database is not configured.' }, 503);
   try {
     const result = await env.DB.prepare(`UPDATE bookings
-      SET payment_status = 'Paid', booking_status = 'Confirmed'
+      SET payment_status = 'Paid', booking_status = CASE WHEN approval_status = 'Approved' THEN 'Confirmed' ELSE 'Pending admin approval' END
       WHERE id = ? AND payment_status = 'Unpaid'
+        AND NOT EXISTS (
+          SELECT 1 FROM slot_controls AS closed
+          WHERE closed.activity = bookings.activity
+            AND closed.booking_date = bookings.booking_date
+            AND closed.start_hour = bookings.start_hour
+            AND closed.is_available = 0
+        )
         AND NOT EXISTS (
           SELECT 1 FROM bookings AS paid
           WHERE paid.activity = bookings.activity
             AND paid.booking_date = bookings.booking_date
             AND paid.start_hour = bookings.start_hour
             AND paid.payment_status = 'Paid'
+            AND paid.approval_status = 'Approved'
         )`).bind(params.id).run();
     if (result.meta.changes === 1) return json({ ok: true });
     const existing = await env.DB.prepare('SELECT payment_status FROM bookings WHERE id = ?').bind(params.id).first();

@@ -6,7 +6,9 @@ export async function onRequestGet({ request, env }) {
   const date = url.searchParams.get('date') || '';
   const activity = url.searchParams.get('activity') || '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !['Pickleball', 'Billiards'].includes(activity)) return json({ error: 'Choose a valid date and activity.' }, 400);
-  const { results } = await env.DB.prepare('SELECT time_label FROM bookings WHERE booking_date = ? AND activity = ? AND payment_status = \'Paid\'')
+  const { results } = await env.DB.prepare("SELECT time_label FROM bookings WHERE booking_date = ? AND activity = ? AND payment_status = 'Paid' AND approval_status = 'Approved'")
     .bind(date, activity).all();
-  return json({ bookedTimes: results.map((row) => row.time_label) });
+  const { results: closed } = await env.DB.prepare('SELECT start_hour FROM slot_controls WHERE booking_date = ? AND activity = ? AND is_available = 0')
+    .bind(date, activity).all();
+  return json({ bookedTimes: results.map((row) => row.time_label), unavailableHours: closed.map((row) => row.start_hour) });
 }

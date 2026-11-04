@@ -48,13 +48,15 @@ function drawCalendar() {
   document.getElementById('prevMonth').disabled = monthCursor.getFullYear() === today.getFullYear() && monthCursor.getMonth() <= today.getMonth();
 }
 
-async function drawSlots() {
+async function drawSlots({ keepSelection = false } = {}) {
+  const previouslySelected = keepSelection ? selectedTime : '';
   selectedTime = '';
   const requestId = ++slotRequest;
   const selectedDate = dateInput.value;
   const currentActivity = activity.value;
   const rate = rates[currentActivity];
   let bookedTimes = new Set();
+  let workerUnavailableHours = new Set();
   let availabilityReady = false;
   if (currentActivity && selectedDate) {
     try {
@@ -62,10 +64,11 @@ async function drawSlots() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Availability is unavailable.');
       bookedTimes = new Set(data.bookedTimes);
+      workerUnavailableHours = new Set(data.unavailableHours);
       availabilityReady = true;
       scheduleNote.textContent = selectedDate === todayString
-        ? 'Past hours are closed. Choose an open time below; unpaid requests do not reserve it.'
-        : 'Choose an open time below. The slot becomes booked after payment is recorded.';
+        ? 'Past hours are closed. Choose an open time below; pending requests do not reserve it.'
+        : 'Choose an open time below. Admin approval and recorded payment are both required to confirm a slot.';
     } catch (error) {
       scheduleNote.textContent = `${error.message} Please refresh or try again.`;
     }
@@ -77,12 +80,14 @@ async function drawSlots() {
     const time = `${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`;
     const endTime = hourLabel(hour + 1);
     const paidBooking = bookedTimes.has(time);
+    const staffClosed = workerUnavailableHours.has(hour);
     const isClosed = hour >= 19;
     const isPastDate = selectedDate < todayString;
     const isPastHour = selectedDate === todayString && hour <= today.getHours();
     let state = availabilityReady ? 'open' : 'unavailable';
     if (isClosed) state = 'closed';
     else if (paidBooking) state = 'booked';
+    else if (staffClosed) state = 'staff-closed';
     else if (isPastDate || isPastHour) state = 'past';
 
     const button = document.createElement('button');
@@ -91,18 +96,25 @@ async function drawSlots() {
     const range = document.createElement('span'); range.className = 'slot-range';
     range.innerHTML = `<strong>${hourLabel(hour)}</strong><span>to</span><strong>${endTime}</strong><em>₱${rate}</em>`;
     const status = document.createElement('span'); status.className = 'slot-status';
-    status.textContent = state === 'booked' ? '✓ Booked' : state === 'closed' ? '⚒ Closed' : state === 'past' ? 'Past' : state === 'unavailable' ? 'Unavailable' : 'Open';
+    status.textContent = state === 'booked' ? '✓ Booked' : state === 'closed' ? '⚒ Closed' : state === 'staff-closed' ? 'Unavailable' : state === 'past' ? 'Past' : state === 'unavailable' ? 'Unavailable' : 'Open';
     button.append(range, status);
     button.setAttribute('aria-label', `${hourLabel(hour)} to ${endTime}, ${state}${state === 'open' ? `, ${rate} pesos` : ''}`);
     button.addEventListener('click', () => {
       timeGrid.querySelectorAll('.time-slot').forEach((item) => item.classList.remove('selected'));
       button.classList.add('selected'); selectedTime = time; message.textContent = '';
     });
+    if (previouslySelected === time && state === 'open') {
+      button.classList.add('selected');
+      selectedTime = time;
+    } else if (previouslySelected === time && state !== 'open') {
+      message.textContent = 'That time just became unavailable. Please choose another open hour.';
+      message.classList.remove('success');
+    }
     timeGrid.append(button);
   }
   scheduleNote.textContent = selectedDate === todayString
-    ? 'Past hours are closed. Choose an open time below; unpaid requests do not reserve it.'
-    : 'Choose an open time below. The slot becomes booked after payment is recorded.';
+    ? 'Past hours are closed. Choose an open time below; pending requests do not reserve it.'
+    : 'Choose an open time below. Admin approval and recorded payment are both required to confirm a slot.';
 }
 
 dateInput.value = todayString;
@@ -114,6 +126,9 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 });
 activity.addEventListener('change', drawSlots);
 drawCalendar(); drawSlots();
+window.setInterval(() => {
+  if (document.visibilityState === 'visible' && activity.value && dateInput.value) drawSlots({ keepSelection: true });
+}, 20000);
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -128,7 +143,7 @@ form.addEventListener('submit', async (event) => {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not save the booking.');
-    message.textContent = `Booking request saved, ${String(fd.get('name')).trim()}. Your ${String(fd.get('activity'))} slot on ${String(fd.get('date'))} at ${selectedTime} remains open until payment is received.`;
+    message.textContent = `Booking request saved, ${String(fd.get('name')).trim()}. Your ${String(fd.get('activity'))} request for ${String(fd.get('date'))} at ${selectedTime} is pending admin approval and payment. The slot stays open until both are complete.`;
     message.classList.add('success'); form.reset(); activity.value = 'Pickleball'; selectedTime = ''; dateInput.value = todayString; monthCursor = new Date(today.getFullYear(), today.getMonth(), 1); drawCalendar(); await drawSlots();
   } catch (error) {
     message.textContent = error.message;

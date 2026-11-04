@@ -21,13 +21,16 @@ export async function onRequestPost({ request, env }) {
   const now = manilaNow();
   if (date < now.date || (date === now.date && startHour <= now.hour)) return json({ error: 'That date or time has already passed.' }, 400);
   const occupied = await env.DB.prepare(`SELECT id FROM bookings
-    WHERE activity = ? AND booking_date = ? AND start_hour = ? AND payment_status = 'Paid' LIMIT 1`)
+    WHERE activity = ? AND booking_date = ? AND start_hour = ? AND payment_status = 'Paid' AND approval_status = 'Approved' LIMIT 1`)
     .bind(activity, date, startHour).first();
   if (occupied) return json({ error: 'That slot has already been paid for. Choose another time.' }, 409);
+  const unavailable = await env.DB.prepare('SELECT 1 FROM slot_controls WHERE activity = ? AND booking_date = ? AND start_hour = ? AND is_available = 0')
+    .bind(activity, date, startHour).first();
+  if (unavailable) return json({ error: 'The venue marked that time unavailable. Choose another slot.' }, 409);
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
-  await env.DB.prepare(`INSERT INTO bookings (id, name, phone, email, activity, booking_date, time_label, start_hour, payment_method, amount, booking_status, payment_status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Awaiting payment', 'Unpaid', ?)`)
+  await env.DB.prepare(`INSERT INTO bookings (id, name, phone, email, activity, booking_date, time_label, start_hour, payment_method, amount, booking_status, payment_status, approval_status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending admin approval', 'Unpaid', 'Pending', ?)`)
     .bind(id, name, phone, email, activity, date, time, startHour, paymentMethod, AMOUNTS[activity], createdAt).run();
-  return json({ id, status: 'Awaiting payment', paymentStatus: 'Unpaid' }, 201);
+  return json({ id, status: 'Pending admin approval', paymentStatus: 'Unpaid', approvalStatus: 'Pending' }, 201);
 }

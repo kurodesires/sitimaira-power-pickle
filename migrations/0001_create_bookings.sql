@@ -11,12 +11,13 @@ CREATE TABLE IF NOT EXISTS bookings (
   amount INTEGER NOT NULL,
   booking_status TEXT NOT NULL DEFAULT 'Awaiting payment',
   payment_status TEXT NOT NULL DEFAULT 'Unpaid',
+  approval_status TEXT NOT NULL DEFAULT 'Pending' CHECK (approval_status IN ('Pending', 'Approved')),
   created_at TEXT NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS one_paid_booking_per_slot
+CREATE UNIQUE INDEX IF NOT EXISTS one_paid_approved_booking_per_slot
 ON bookings (activity, booking_date, start_hour)
-WHERE payment_status = 'Paid';
+WHERE payment_status = 'Paid' AND approval_status = 'Approved';
 
 CREATE INDEX IF NOT EXISTS bookings_by_date_activity
 ON bookings (booking_date, activity, payment_status);
