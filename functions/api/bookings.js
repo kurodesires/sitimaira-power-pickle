@@ -24,8 +24,15 @@ export async function onRequestPost({ request, env }) {
     WHERE activity = ? AND booking_date = ? AND start_hour = ? AND payment_status = 'Paid' AND approval_status = 'Approved' LIMIT 1`)
     .bind(activity, date, startHour).first();
   if (occupied) return json({ error: 'That slot has already been paid for. Choose another time.' }, 409);
-  const unavailable = await env.DB.prepare('SELECT 1 FROM slot_controls WHERE activity = ? AND booking_date = ? AND start_hour = ? AND is_available = 0')
-    .bind(activity, date, startHour).first();
+  let unavailable;
+  try {
+    unavailable = await env.DB.prepare(`SELECT 1 FROM walkin_blocks
+      WHERE activity = ? AND booking_date = ? AND start_minute < ? AND end_minute > ?
+        AND (? != booking_date OR end_minute > ?) LIMIT 1`)
+      .bind(activity, date, (startHour + 1) * 60, startHour * 60, now.date, now.hour * 60 + now.minute).first();
+  } catch {
+    return json({ error: 'Availability is not configured yet. The venue must apply D1 migrations 0003 and 0004.' }, 503);
+  }
   if (unavailable) return json({ error: 'The venue marked that time unavailable. Choose another slot.' }, 409);
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();

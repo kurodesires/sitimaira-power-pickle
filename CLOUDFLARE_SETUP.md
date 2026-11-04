@@ -7,7 +7,7 @@ The site uses Pages Functions in `functions/` and a D1 database. Do not put staf
 1. In Cloudflare, create a D1 database for this project.
 2. In the Pages project, open **Settings → Bindings → Add → D1 database binding**.
 3. Set the variable name to `DB`, select the database, save, and redeploy.
-4. For a new database, apply `migrations/0001_create_bookings.sql` and `migrations/0003_staff_slot_controls.sql` in the D1 Console. For the existing database created earlier, apply any missing migrations in order: `migrations/0002_require_admin_approval.sql`, then `migrations/0003_staff_slot_controls.sql`. Do not run 0001 again.
+4. For a new database, apply `migrations/0001_create_bookings.sql`, then `migrations/0003_staff_slot_controls.sql`, then `migrations/0004_walkin_time_blocks.sql`. For the existing database created earlier, apply any missing migrations in order: `migrations/0002_require_admin_approval.sql`, `migrations/0003_staff_slot_controls.sql`, then `migrations/0004_walkin_time_blocks.sql`. Do not rerun migrations already applied.
 
 ## 2. Add encrypted secrets
 
@@ -26,7 +26,7 @@ The repository root contains `index.html` and the `functions/` directory. Connec
 ## API behavior
 
 - `GET /api/availability` returns online slots occupied after admin approval and payment, plus hours staff marked unavailable for walk-ins.
-- `GET/POST /api/staff/availability` lets authenticated staff mark an hour unavailable or make it available again, without overriding a confirmed online booking.
+- `GET/POST/DELETE /api/staff/availability` lets authenticated staff mark custom date/time ranges unavailable for walk-ins. Blocks expire automatically at their end time; confirmed online bookings cannot be blocked.
 - `POST /api/bookings` validates booking fields and saves an unpaid request that is pending admin approval. The server calculates the price.
 - `POST /api/auth/login` validates credentials on the server and sets a signed, HttpOnly, Secure, SameSite=Strict cookie.
 - `GET /api/staff/bookings`, `POST /api/staff/bookings/:id/approve`, `POST /api/staff/bookings/:id/paid`, and `DELETE /api/staff/bookings/:id` require that staff session.

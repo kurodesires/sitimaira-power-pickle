@@ -56,7 +56,7 @@ async function drawSlots({ keepSelection = false } = {}) {
   const currentActivity = activity.value;
   const rate = rates[currentActivity];
   let bookedTimes = new Set();
-  let workerUnavailableHours = new Set();
+  let workerUnavailableTimes = new Set();
   let availabilityReady = false;
   if (currentActivity && selectedDate) {
     try {
@@ -64,7 +64,7 @@ async function drawSlots({ keepSelection = false } = {}) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Availability is unavailable.');
       bookedTimes = new Set(data.bookedTimes);
-      workerUnavailableHours = new Set(data.unavailableHours);
+      workerUnavailableTimes = new Set(data.unavailableTimes);
       availabilityReady = true;
       scheduleNote.textContent = selectedDate === todayString
         ? 'Past hours are closed. Choose an open time below; pending requests do not reserve it.'
@@ -80,7 +80,7 @@ async function drawSlots({ keepSelection = false } = {}) {
     const time = `${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`;
     const endTime = hourLabel(hour + 1);
     const paidBooking = bookedTimes.has(time);
-    const staffClosed = workerUnavailableHours.has(hour);
+    const staffClosed = workerUnavailableTimes.has(time);
     const isClosed = hour >= 19;
     const isPastDate = selectedDate < todayString;
     const isPastHour = selectedDate === todayString && hour <= today.getHours();

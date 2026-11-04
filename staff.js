@@ -8,6 +8,8 @@ const summary = document.getElementById('staffSummary');
 const adminDate = document.getElementById('adminDate');
 const adminActivity = document.getElementById('adminActivity');
 const adminSlotGrid = document.getElementById('adminSlotGrid');
+const walkinBlockForm = document.getElementById('walkinBlockForm');
+const walkinBlockList = document.getElementById('walkinBlockList');
 const availabilityMessage = document.getElementById('adminAvailabilityMessage');
 let authenticated = false;
 
@@ -26,6 +28,7 @@ function showDashboard(isLoggedIn) {
   if (isLoggedIn) { render(); renderAvailability(); }
 }
 function hourLabel(hour) { return `${hour % 12 || 12}${hour < 12 ? 'am' : 'pm'}`; }
+function minuteLabel(total) { const hour = Math.floor(total / 60); const minute = total % 60; return `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`; }
 function dateToday() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
 function cell(text) { const td = document.createElement('td'); td.textContent = text ?? ''; return td; }
 function actionButton(label, className, handler) {
@@ -79,33 +82,52 @@ async function renderAvailability() {
   adminSlotGrid.replaceChildren();
   try {
     const query = new URLSearchParams({ date: adminDate.value, activity: adminActivity.value });
-    const { unavailableHours, bookedHours } = await requestJson(`/api/staff/availability?${query}`);
+    const { blocks, bookings } = await requestJson(`/api/staff/availability?${query}`);
+    const bookedHours = new Set(bookings.map((booking) => booking.startHour));
     for (let hour = 6; hour < 19; hour += 1) {
-      const booked = bookedHours.includes(hour);
-      const available = !booked && !unavailableHours.includes(hour);
+      const booked = bookedHours.has(hour);
+      const walkinBlocked = blocks.some((block) => block.startMinute < (hour + 1) * 60 && block.endMinute > hour * 60);
+      const available = !booked && !walkinBlocked;
       const card = document.createElement('div'); card.className = `admin-slot ${booked ? 'is-booked' : available ? 'is-open' : 'is-unavailable'}`;
       const label = document.createElement('div'); label.className = 'admin-slot-label';
       const range = document.createElement('strong'); range.textContent = `${hourLabel(hour)} to ${hourLabel(hour + 1)}`;
       const status = document.createElement('span'); status.textContent = booked ? 'Booked online' : available ? 'Available' : 'Unavailable · walk-in';
       label.append(range, status);
-      const button = actionButton(booked ? 'Booked' : available ? 'Mark unavailable' : 'Make available', 'availability-toggle', async () => {
-        button.disabled = true;
-        try {
-          await requestJson('/api/staff/availability', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date: adminDate.value, activity: adminActivity.value, hour, available: !available }) });
-          await renderAvailability();
-        } catch (error) { availabilityMessage.textContent = error.message; button.disabled = false; }
-      });
-      button.disabled = booked;
-      card.append(label, button); adminSlotGrid.append(card);
+      card.append(label); adminSlotGrid.append(card);
     }
+    walkinBlockList.replaceChildren();
+    if (!blocks.length) { walkinBlockList.textContent = 'No active walk-in holds for this date.'; return; }
+    blocks.forEach((block) => {
+      const item = document.createElement('div'); item.className = 'walkin-block-item';
+      const times = document.createElement('span'); times.textContent = `${minuteLabel(block.startMinute)} – ${minuteLabel(block.endMinute)} · automatically reopens at ${minuteLabel(block.endMinute)}`;
+      const release = actionButton('Make available now', 'availability-toggle', async () => {
+        release.disabled = true;
+        try {
+          await requestJson('/api/staff/availability', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: block.id }) });
+          await renderAvailability();
+        } catch (error) { availabilityMessage.textContent = error.message; release.disabled = false; }
+      });
+      item.append(times, release); walkinBlockList.append(item);
+    });
   } catch (error) {
     adminSlotGrid.textContent = error.message;
+    walkinBlockList.replaceChildren();
   }
 }
 
 adminDate.value = dateToday();
 adminDate.addEventListener('change', renderAvailability);
 adminActivity.addEventListener('change', renderAvailability);
+walkinBlockForm.addEventListener('submit', async (event) => {
+  event.preventDefault(); availabilityMessage.textContent = '';
+  const submit = walkinBlockForm.querySelector('[type="submit"]'); submit.disabled = true;
+  try {
+    await requestJson('/api/staff/availability', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date: adminDate.value, activity: adminActivity.value, startTime: document.getElementById('walkinStart').value, endTime: document.getElementById('walkinEnd').value }) });
+    await renderAvailability();
+  } catch (error) { availabilityMessage.textContent = error.message; }
+  finally { submit.disabled = false; }
+});
+window.setInterval(() => { if (authenticated && document.visibilityState === 'visible') renderAvailability(); }, 30000);
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
